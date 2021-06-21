@@ -1,0 +1,4 @@
+torch>=1.0.1
+numpy>=1.19.5
+trimesh>=3.5.16
+Pillow>=7.0.0
