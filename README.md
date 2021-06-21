@@ -18,7 +18,7 @@ By downloading and/or using the Data & Software (including downloading, cloning,
 terms and conditions, understand them, and agree to be bound by them. If you do not agree with these terms and conditions, you must not download and/or use the Data & Software. Any infringement 
 of the terms of this agreement will automatically terminate your rights under this [License](./LICENSE).
 
-## Installation as python module
+## Installation
 
 #### 1) Clone this repository 
 ```
@@ -32,6 +32,7 @@ python3 -m venv $YOUR_VENV_DIR/selfcontact
 source $YOUR_VENV_DIR/selfcontact/bin/activate
 pip install -r requirements.txt
 ```
+To use the repo as python module, use `pip install .` instead and move on with step 3).
 
 #### 3) Download essentials
 Download the essentials from [here](https://download.is.tue.mpg.de/tuch/smplify-xmc-essentials.zip). These files are required and include for example the 
