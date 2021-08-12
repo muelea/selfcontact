@@ -59,6 +59,8 @@ def main(args):
         compute_hd=False
     )
 
+    import ipdb;ipdb.set_trace()
+
     mesh = trimesh.load(OBJ_FILE, process=False)
     vertices = torch.from_numpy(mesh.vertices) \
                     .unsqueeze(0) \

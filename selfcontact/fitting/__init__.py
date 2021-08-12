@@ -1,0 +1,1 @@
+from .selfcontact_optimization import SelfContactOpti

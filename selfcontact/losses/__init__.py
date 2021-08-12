@@ -1,1 +1,2 @@
 from .general_selfcontact_loss import SelfContactLoss
+from .selfcontact_optimization_loss import SelfContactOptiLoss

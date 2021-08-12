@@ -24,8 +24,8 @@ render_reqs = ['Pillow>=7.0.0']
 
 setuptools.setup(
     name='selfcontact',
-    version='0.1.0',
-    packages=['selfcontact','selfcontact.utils', 'selfcontact.losses'],
+    version='0.2.0',
+    packages=['selfcontact','selfcontact.utils', 'selfcontact.losses', 'selfcontact.fitting'],
     license='Creative Commons Attribution-Noncommercial-Share Alike license',
     description='PyTorch module to detect self-contact and self-interpenetration.',
     long_description=long_description,

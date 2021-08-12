@@ -40,6 +40,7 @@ class SelfContact(nn.Module):
         model_type='smplx',
         test_segments=True,
         compute_hd=False,
+        buffer_geodists=False,
     ):
         super().__init__()
 
@@ -85,6 +86,8 @@ class SelfContact(nn.Module):
         # geodesic distance mask
         if geodesics_path is not None:
             geodesicdists = torch.Tensor(np.load(geodesics_path))
+            if buffer_geodists:
+                self.register_buffer('geodesicdists', geodesicdists)
             geodistmask = geodesicdists >= self.geothres
             self.register_buffer('geomask', geodistmask)
 
@@ -183,7 +186,7 @@ class SelfContact(nn.Module):
         v2v = batch_pairwise_dist(verts1, verts2, squared=squared)
         return v2v
 
-    def segment_vertices(self, vertices, compute_hd=False, test_segments=True):
+    def segment_vertices(self, vertices, compute_hd=False, test_segments=True, use_pytorch_norm=False, return_v2v_min_idx=False):
         """
             get self-intersecting vertices and pairwise distance
         """
@@ -199,7 +202,15 @@ class SelfContact(nn.Module):
         )
 
         # get pairwise distances of vertices
-        v2v = self.get_pairwise_dists(vertices, vertices, squared=False)
+        if not use_pytorch_norm:
+            v2v = self.get_pairwise_dists(vertices, vertices, squared=False)
+        else:
+            if vertices.shape[0] > 1:
+                sys.exit('Please use batch size one or set use_pytorch_norm=False')
+            nv = vertices.shape[1]
+            v2v = vertices.squeeze().unsqueeze(1).expand(nv, nv, 3) - \
+                  vertices.squeeze().unsqueeze(0).expand(nv, nv, 3)
+            v2v = torch.norm(v2v, dim=2).unsqueeze(0)
         v2v_mask = v2v.detach().clone()
         v2v_mask[:, ~self.geomask] = float('inf')
         _, v2v_min_index = torch.min(v2v_mask, dim=1)
@@ -213,8 +224,14 @@ class SelfContact(nn.Module):
                 self.segment_hd_points(
                     vertices, v2v_min, incontact, exterior, test_segments)
 
-        return (v2v_min, incontact, exterior), \
-               (hd_v2v_min, hd_exterior, hd_points, hd_faces_in_contact)
+        if return_v2v_min_idx:
+            v2v_out = (v2v_min, v2v_min_index, incontact, exterior)
+        else:
+            v2v_out = (v2v_min, incontact, exterior)
+
+        hd_v2v_out = (hd_v2v_min, hd_exterior, hd_points, hd_faces_in_contact)
+
+        return v2v_out, hd_v2v_out
 
     def segment_hd_points(self, vertices, v2v_min, incontact, exterior, test_segments=True):
         """
@@ -287,6 +304,7 @@ class SelfContact(nn.Module):
                 hd_faces_in_contacts += [None]
 
         return hd_v2v_mins, hd_exteriors, hd_points, hd_faces_in_contacts
+
 
 
 class SelfContactSmall(nn.Module):

@@ -1,6 +1,9 @@
 ignore/
 pyproject.toml
 
+# vscode 
+.vscode
+
 # Python cache
 __pycache__/
 *.py[cod]

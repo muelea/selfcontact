@@ -1,0 +1,16 @@
+batch_size: 1
+body_model:
+  model_type: smplx
+  num_pca_comps: 12
+contact:
+  euclidean_thres: 0.03
+  geodesic_thres: 0.3
+loss:
+  contact_weight: 60
+  inside_weight: 60
+  outside_weight: 0.01
+  hand_contact_prior_weight: 10
+optimizer:
+  name: adam
+  learning_rate: 0.01
+  max_iters: 500
