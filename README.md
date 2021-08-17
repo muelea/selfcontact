@@ -53,6 +53,10 @@ Mesh with result inside / outside segmentation WITHOUT segment tests. Note, how 
 Mesh with result inside / outside segmentation WITH segment tests. With segment testing, these self-intersections are ignored.
 
 
+#### 5) Run example script to test for self-intersections
+Run the self-contact optimization
+python selfcontact/tutorial/run_selfcontact_optimization.py --essentials_folder ESSENTIALS_FOLDER --model_folder MODEL_FOLDER --output_folder OUTPUT_FOLDER
+
 ## Citation
 ```
 @inproceedings{Mueller:CVPR:2021,

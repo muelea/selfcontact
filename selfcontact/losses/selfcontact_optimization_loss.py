@@ -30,9 +30,20 @@ class SelfContactOptiLoss(nn.Module):
         outside_loss_weight,
         contact_loss_weight,
         hand_contact_prior_weight,
+        pose_prior_weight,
+        hand_pose_prior_weight,
+        angle_weight,
         hand_contact_prior_path,
         downsample,
-        device,
+        alpha1=0.04,
+        alpha2=0.04,
+        beta1=0.07,
+        beta2=0.06,
+        gamma1=0.01,
+        gamma2=0.01,
+        delta1=0.023,
+        delta2=0.02,
+        device='cuda',
     ):
         super().__init__()
 
@@ -43,6 +54,19 @@ class SelfContactOptiLoss(nn.Module):
         self.contact_w = contact_loss_weight
         self.outside_w = outside_loss_weight
         self.hand_contact_prior_weight = hand_contact_prior_weight
+        self.pose_prior_weight = pose_prior_weight
+        self.hand_pose_prior_weight = hand_pose_prior_weight
+        self.angle_weight = angle_weight 
+
+        # hyper params
+        self.a1 = alpha1
+        self.a2 = alpha2
+        self.b1 = beta1
+        self.b2 = beta2
+        self.c1 = gamma1
+        self.c2 = gamma2
+        self.d1 = delta1
+        self.d2 = delta2
 
         # load hand-on-body prior
         with open(hand_contact_prior_path, 'rb') as f:
@@ -103,59 +127,63 @@ class SelfContactOptiLoss(nn.Module):
         (hd_v2v_min, hd_exterior, hd_points, hd_faces_in_contact) \
         = self.cm.segment_vertices(
             vertices,
-            compute_hd=False, #self.use_hd,
-            test_segments=False, #test_segments=self.test_segments,
+            compute_hd=False,
+            test_segments=False,
             use_pytorch_norm=True,
             return_v2v_min_idx=True
         )
         v2v_min = v2v_min.squeeze()
 
         # only extrimities intersect
-        inside = torch.zeros_like(exterior).to(exterior.device).to(torch.bool)
+        inside = torch.zeros_like(exterior).to(device).to(torch.bool)
         inside[:,self.ds[~exterior[0, self.ds]]] = True
         inside = inside.squeeze()
 
         # ==== contact loss ====
-        # compute attraction weight depending on geodesic distance to inital verts in contact
-        if inside.sum() > 0:
-            v2vinside = v2v_min[inside]
-            v2vinside = 0.07 * torch.tanh(v2vinside / 0.06)
-            insideloss = 0.5 * self.inside_w * v2vinside.mean()
-
+        # pull outside together
         if (~inside).sum() > 0:
             if len(self.init_verts_in_contact) > 0:
                 weights_outside = 1 / (5 * self.geodist[:, self.init_verts_in_contact].min(1)[0] + 1)
             else:
-                weights_outside = torch.ones_like(self.geodist)[:,0].to(v2vinside.device)
-            #cols[:, 0] = 255 * weights_outside.cpu().numpy()
+                weights_outside = torch.ones_like(self.geodist)[:,0].to(device)
             attaction_weights = weights_outside[self.ds][~inside[self.ds]]
             v2voutside = v2v_min[self.ds][~inside[self.ds]]
-            v2voutside = 0.04 * attaction_weights  * torch.tanh(v2voutside/0.04)
-            contactloss = 0.5 * self.contact_w * v2voutside.mean()
+            v2voutside = self.a1 * attaction_weights  * torch.tanh(v2voutside/self.a2)
+            contactloss = self.contact_w * v2voutside.mean()
+
+        # push inside to surface
+        if inside.sum() > 0:
+            v2vinside = v2v_min[inside]
+            v2vinside = self.b1 * torch.tanh(v2vinside / self.b2)
+            insideloss = self.inside_w * v2vinside.mean()
 
         # ==== hand-on-body prior loss ====
         ha = int(self.hand_contact_prior.shape[0] / 2)
         hand_verts_inside = inside[self.hand_contact_prior]
+
+        if (~hand_verts_inside).sum() > 0:
+            left_hand_outside = v2v_min[self.hand_contact_prior[:ha]][(~hand_verts_inside)[:ha]]
+            right_hand_outside = v2v_min[self.hand_contact_prior[ha:]][(~hand_verts_inside)[ha:]]
+            # weights based on hand contact prior
+            left_hand_weights = -0.1 * self.hand_contact_prior_weights[:ha].view(-1,1)[(~hand_verts_inside)[:ha]].view(-1,1) + 1.0
+            right_hand_weights = -0.1 * self.hand_contact_prior_weights[ha:].view(-1,1)[(~hand_verts_inside)[ha:]].view(-1,1) + 1.0       
+            if left_hand_outside.sum() > 0:
+                left_hand_contact_loss_outside = self.c1 * torch.tanh(left_hand_outside/self.c2)
+            if right_hand_outside.sum() > 0:
+                right_hand_contact_loss_outside = self.c1 * torch.tanh(right_hand_outside/self.c2)
+            hand_contact_loss_outside = (left_hand_weights * left_hand_contact_loss_outside.view(-1,1)).mean() + \
+                                        (right_hand_weights * right_hand_contact_loss_outside.view(-1,1)).mean()
+
         if hand_verts_inside.sum() > 0:
             left_hand_inside = v2v_min[self.hand_contact_prior[:ha]][hand_verts_inside[:ha]]
             right_hand_inside = v2v_min[self.hand_contact_prior[ha:]][hand_verts_inside[ha:]]
             if left_hand_inside.sum() > 0:
-                left_hand_contact_loss_inside = 0.023 * torch.tanh(left_hand_inside/0.02)
+                left_hand_contact_loss_inside = self.d1 * torch.tanh(left_hand_inside/self.d2)
             if right_hand_inside.sum() > 0:
-                right_hand_contact_loss_inside = 0.023 * torch.tanh(right_hand_inside/0.02)
+                right_hand_contact_loss_inside = self.d1 * torch.tanh(right_hand_inside/self.d2)
             hand_contact_loss_inside = left_hand_contact_loss_inside.mean() + right_hand_contact_loss_inside.mean()
-        if (~hand_verts_inside).sum() > 0:
-            left_hand_outside = v2v_min[self.hand_contact_prior[:ha]][(~hand_verts_inside)[:ha]]
-            right_hand_outside = v2v_min[self.hand_contact_prior[ha:]][(~hand_verts_inside)[ha:]]
-            left_hand_weights = (0.1*(-1*(self.hand_contact_prior_weights[:ha].view(-1,1)[(~hand_verts_inside)[:ha]].view(-1,1))+1)+0.9)
-            right_hand_weights = (0.1*(-1*(self.hand_contact_prior_weights[ha:].view(-1,1)[(~hand_verts_inside)[ha:]].view(-1,1))+1)+0.9)
-            if left_hand_outside.sum() > 0:
-                left_hand_contact_loss_outside = 0.01 * torch.tanh(left_hand_outside/0.01)
-            if right_hand_outside.sum() > 0:
-                right_hand_contact_loss_outside = 0.01 * torch.tanh(right_hand_outside/0.01)
-            hand_contact_loss_outside = (left_hand_weights * left_hand_contact_loss_outside.view(-1,1)).mean() + \
-                                        (right_hand_weights * right_hand_contact_loss_outside.view(-1,1)).mean()
-        hand_contact_loss = 0.2 * self.hand_contact_prior_weight * (0.5 * hand_contact_loss_inside + 0.5 * hand_contact_loss_outside)
+
+        hand_contact_loss = self.hand_contact_prior_weight * (hand_contact_loss_inside + hand_contact_loss_outside)
 
         # ==== align normals of verts in contact ====
         verts_close = torch.where(v2v_min < 0.01)[0]
@@ -164,14 +192,14 @@ class SelfContactOptiLoss(nn.Module):
             dotprod_normals = torch.matmul(vertex_normals, torch.transpose(vertex_normals,1,2))[0]
             normalsgather = dotprod_normals.gather(1, v2v_min_idx.view(-1,1))
             angle_loss = 1 + normalsgather[verts_close,:]
-            angle_loss = 0.001 * angle_loss.mean()
+            angle_loss = self.angle_weight * angle_loss.mean()
 
         # ==== penalize deviation from initial pose params ====
-        pose_prior_loss = F.mse_loss(body.body_pose,
-                            self.init_pose, reduction='sum')
+        pose_prior_loss = self.pose_prior_weight * F.mse_loss(body.body_pose, self.init_pose, reduction='sum')
 
-        hand_pose_prior_loss = 0.001 * (self.hand_pose_prior(body.left_hand_pose) + \
-                               self.hand_pose_prior(body.right_hand_pose))
+        # ==== penalize deviation from mean hand pose ====
+        hand_pose_prior_loss = self.hand_pose_prior_weight * \
+            (self.hand_pose_prior(body.left_hand_pose) + self.hand_pose_prior(body.right_hand_pose))
 
         # ==== pose regression loss / outside loss ====
         outsidelossv2v = torch.norm(self.init_verts-body.vertices, dim=2)
@@ -194,4 +222,4 @@ class SelfContactOptiLoss(nn.Module):
             'PosePrior': pose_prior_loss.item(),
         }
 
-        return loss, loss_dict, inside, cols
+        return loss, loss_dict

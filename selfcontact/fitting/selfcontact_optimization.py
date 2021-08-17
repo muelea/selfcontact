@@ -52,7 +52,7 @@ class SelfContactOpti():
                     ])
         return optimizer
 
-    def run(self, body_model, params, npz_idx=0):
+    def run(self, body_model, params):
 
         # create optimizer 
         optimizer = self.get_optimizer(body_model)
@@ -86,7 +86,7 @@ class SelfContactOpti():
             )
 
             # compute loss
-            total_loss, loss_dict, _, cols = self.loss(body)
+            total_loss, loss_dict = self.loss(body)
             print(step, printlosses(loss_dict))
 
             # =========== stop criterion based on loss ===========
@@ -101,13 +101,6 @@ class SelfContactOpti():
             # back prop
             total_loss.backward(retain_graph=False)
             optimizer.step()
-
-            #cols = 255 * np.ones((body.vertices.shape[1], 4))
-            #cols[self.loss.init_verts_in_contact, :2] = 1
-            if step%100 == 0:
-                mesh = trimesh.Trimesh(body.vertices[0].detach().cpu().numpy(), body_model.faces, process=False)
-                mesh.visual.vertex_colors = cols
-                mesh.export(f'/is/cluster/lmueller2/outdebug/scopti_test_17/{npz_idx}_{step}_output.obj')
 
         return body
 

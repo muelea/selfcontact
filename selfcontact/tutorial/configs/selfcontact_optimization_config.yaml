@@ -6,11 +6,14 @@ contact:
   euclidean_thres: 0.03
   geodesic_thres: 0.3
 loss:
-  contact_weight: 60
-  inside_weight: 60
+  contact_weight: 30
+  inside_weight: 30
   outside_weight: 0.01
-  hand_contact_prior_weight: 10
+  hand_contact_prior_weight: 1.0
+  pose_prior_weight: 1.0 
+  hand_pose_prior_weight: 0.001
+  angle_weight: 0.001
 optimizer:
   name: adam
   learning_rate: 0.01
-  max_iters: 500
+  max_iters: 1000
