@@ -58,10 +58,12 @@ Mesh with result inside / outside segmentation WITH segment tests. With segment 
 
 #### 5) Run example script to test for self-contact optimization
 Run the self-contact optimization:
+```
 python selfcontact/tutorial/run_selfcontact_optimization.py --essentials_folder ESSENTIALS_FOLDER --model_folder MODEL_FOLDER --output_folder OUTPUT_FOLDER
---config selfcontact/tutorial/configs/selfcontact_optimization_config_orig.yaml
+```
 
-If you want to enable segment testing set the test_segments parameter to True. Please not, that we did not use segment tests in the original paper. With segment testing the optimization is more stable, but the hyperparameters are not tuned.
+If you want to enable segment testing set the test_segments parameter to True in the config file (selfcontact/tutorial/configs/selfcontact_optimization_config_orig.yaml). 
+Please not, that we did not use segment tests in the original paper. With segment testing the optimization is more stable, but the hyperparameters are not tuned.
 
 ## Citation
 ```
