@@ -19,7 +19,8 @@ terms and conditions, understand them, and agree to be bound by them. If you do 
 of the terms of this agreement will automatically terminate your rights under this [License](./LICENSE).
 
 ## !! NEW !!
-- [18 August 2021] Self-contact optimization code has been added. See 5) for more details.
+- [18 August 2021] Version 0.2.0: Self-contact optimization added. See 5) for more details.
+- [21 June 2021] Version 0.1.0: Self-intersections and self-contact detection (commit b82d6ffaebca3871db8c60b9c2be6f45f84fe807)
 
 ## Installation
 
