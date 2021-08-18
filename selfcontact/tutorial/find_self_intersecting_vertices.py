@@ -59,8 +59,6 @@ def main(args):
         compute_hd=False
     )
 
-    import ipdb;ipdb.set_trace()
-
     mesh = trimesh.load(OBJ_FILE, process=False)
     vertices = torch.from_numpy(mesh.vertices) \
                     .unsqueeze(0) \
@@ -79,7 +77,7 @@ def main(args):
 
     # print maximum self-intersection
     max_self_intersection = verts_v2v_min[~verts_exterior].max().item()
-    print(f'Maximum self-intersection in cm: {max_self_intersection*100:.02f}')
+    print(f'Maximum self-intersection without segment tests in cm: {max_self_intersection*100:.02f}')
 
 
     ## Segment mesh into inside and outside vertices with segment tests ##
@@ -95,7 +93,7 @@ def main(args):
         osp.join(OUTPUT_DIR, f'{MESH_FN}_with_segment_tests.obj'))
 
     max_self_intersection = verts_v2v_min[~verts_exterior].max().item()
-    print(f'Maximum self-intersection in cm: {max_self_intersection*100:.02f}')
+    print(f'Maximum self-intersection with segment tests in cm: {max_self_intersection*100:.02f}')
 
 if __name__ == "__main__":
 

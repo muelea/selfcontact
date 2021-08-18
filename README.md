@@ -42,9 +42,9 @@ precomputed geodesic distances for the neutral SMPL-X and SMPL body modles. Unpa
 #### 5) Run example script to test for self-intersections
 ```
 # vertices in contact
-python selfcontact/tutorial/find_vertices_in_contact.py --essentials_folder ESSENTIALS_FOLDER --output_folder OUPUT_FOLDER
+python selfcontact/tutorial/find_vertices_in_contact.py --essentials_folder ESSENTIALS_FOLDER --output_folder OUTPUT_FOLDER
 # intersecting vertices
-python selfcontact/tutorial/find_self_intersecting_vertices.py --essentials_folder ESSENTIALS_FOLDER --output_folder OUPUT_FOLDER
+python selfcontact/tutorial/find_self_intersecting_vertices.py --essentials_folder ESSENTIALS_FOLDER --output_folder OUTPUT_FOLDER
 ```
 <img src="images/example_segmentation_without_segment_tests.png" height="400" alt="Result inside / outside segmentation without segment tests" class="center"> \
 Mesh with result inside / outside segmentation WITHOUT segment tests. Note, how natural intersections, e.g. in the belly or crook regions are detected. 

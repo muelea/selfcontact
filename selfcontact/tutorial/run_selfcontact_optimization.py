@@ -34,7 +34,8 @@ torch.backends.cudnn.enabled = True
 torch.backends.cudnn.deterministic = True
 
 # code contains non-deterministic parts, that may lead to
-# different results when running the same script again:
+# different results when running the same script again. To
+# run the determinisitc version use the following lines:
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':16:8'
 torch.use_deterministic_algorithms(True)
 
