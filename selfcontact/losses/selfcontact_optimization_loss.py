@@ -35,6 +35,8 @@ class SelfContactOptiLoss(nn.Module):
         angle_weight,
         hand_contact_prior_path,
         downsample,
+        test_segments=False,
+        use_hd=False,
         alpha1=0.04,
         alpha2=0.04,
         beta1=0.07,
@@ -48,6 +50,8 @@ class SelfContactOptiLoss(nn.Module):
         super().__init__()
 
         self.ds = downsample
+        self.test_segments = test_segments 
+        self.use_hd = use_hd
 
         # weights
         self.inside_w = inside_loss_weight
@@ -102,13 +106,14 @@ class SelfContactOptiLoss(nn.Module):
             compute loss based on status of vertex
         """
 
-        cols = 255 * np.ones((body.vertices.shape[1], 4))
+        #cols = 255 * np.ones((body.vertices.shape[1], 4))
         #cols[self.loss.init_verts_in_contact, :2] = 1
            
 
         # initialize loss tensors
         device = body.vertices.device
         vertices = body.vertices
+        _, nv, _ = vertices.shape
 
         loss = torch.tensor(0.0, device=device)
         insideloss = torch.tensor(0.0, device=device)
@@ -123,31 +128,39 @@ class SelfContactOptiLoss(nn.Module):
         left_hand_contact_loss_outside = torch.tensor(0.0, device=device)
         right_hand_contact_loss_outside = torch.tensor(0.0, device=device)
 
-        (v2v_min, v2v_min_idx, verts_in_contact, exterior), \
-        (hd_v2v_min, hd_exterior, hd_points, hd_faces_in_contact) \
-        = self.cm.segment_vertices(
-            vertices,
-            compute_hd=False,
-            test_segments=False,
-            use_pytorch_norm=True,
-            return_v2v_min_idx=True
-        )
+        if self.test_segments:
+            v2v_min, v2v_min_idx, exterior \
+                = self.cm.segment_vertices_scopti(
+                vertices=vertices,
+                test_segments=self.test_segments,
+            )
+            # only select vertices on extremities
+            exterior = exterior[:,self.ds]
+        else:
+            v2v_min, v2v_min_idx, exterior = self.cm.segment_points_scopti(
+                points=vertices[:, self.ds, :],
+                vertices=vertices
+            )
         v2v_min = v2v_min.squeeze()
 
-        # only extrimities intersect
-        inside = torch.zeros_like(exterior).to(device).to(torch.bool)
-        inside[:,self.ds[~exterior[0, self.ds]]] = True
-        inside = inside.squeeze()
+        # only extremities intersect
+        inside = torch.zeros(nv).to(device).to(torch.bool)
+        # rewritten, because of pytorch bug when torch.use_deterministic_algorithms(True)
+        true_tensor = torch.ones((~exterior[0]).sum().item(), device=device, dtype=torch.bool)
+        inside[self.ds[~exterior[0]]] = true_tensor
 
         # ==== contact loss ====
         # pull outside together
         if (~inside).sum() > 0:
             if len(self.init_verts_in_contact) > 0:
-                weights_outside = 1 / (5 * self.geodist[:, self.init_verts_in_contact].min(1)[0] + 1)
+                gdi = self.geodist[:, self.init_verts_in_contact].min(1)[0]
+                weights_outside = 1 / (5 * gdi + 1)
             else:
                 weights_outside = torch.ones_like(self.geodist)[:,0].to(device)
             attaction_weights = weights_outside[self.ds][~inside[self.ds]]
             v2voutside = v2v_min[self.ds][~inside[self.ds]]
+            #attaction_weights = weights_outside[~inside]
+            #v2voutside = v2v_min[~inside]
             v2voutside = self.a1 * attaction_weights  * torch.tanh(v2voutside/self.a2)
             contactloss = self.contact_w * v2voutside.mean()
 
@@ -190,7 +203,8 @@ class SelfContactOptiLoss(nn.Module):
         if len(verts_close) > 0:
             vertex_normals = compute_vertex_normals(body.vertices, self.cm.faces)
             dotprod_normals = torch.matmul(vertex_normals, torch.transpose(vertex_normals,1,2))[0]
-            normalsgather = dotprod_normals.gather(1, v2v_min_idx.view(-1,1))
+            #normalsgather = dotprod_normals.gather(1, v2v_min_idx.view(-1,1))
+            normalsgather = dotprod_normals[np.arange(nv), v2v_min_idx.view(-1,1)]
             angle_loss = 1 + normalsgather[verts_close,:]
             angle_loss = self.angle_weight * angle_loss.mean()
 
@@ -204,22 +218,24 @@ class SelfContactOptiLoss(nn.Module):
         # ==== pose regression loss / outside loss ====
         outsidelossv2v = torch.norm(self.init_verts-body.vertices, dim=2)
         if self.init_verts_in_contact.sum() > 0:
-            outsidelossv2vweights = (2 * self.geodist[:, self.init_verts_in_contact].min(1)[0].view(body.vertices.shape[0], -1))**2
+            gd = self.geodist[:, self.init_verts_in_contact].min(1)[0]
+            outsidelossv2vweights = (2 * gd.view(body.vertices.shape[0], -1))**2
         else:
             outsidelossv2vweights = torch.ones_like(outsidelossv2v).to(device)
         outsidelossv2v = (outsidelossv2v * outsidelossv2vweights).sum()
         outsideloss = self.outside_w * outsidelossv2v
 
         # ==== Total loss ====
-        loss =  contactloss + insideloss + outsideloss + angle_loss + pose_prior_loss + hand_pose_prior_loss + hand_contact_loss
+        loss = contactloss + insideloss + outsideloss + pose_prior_loss + hand_pose_prior_loss + angle_loss + hand_contact_loss
         loss_dict = {
             'Total': loss.item(),
-            'Outside': outsideloss.item(),
-            'Inside': insideloss.item(),
             'Contact': contactloss.item(),
+            'Inside': insideloss.item(),
+            'Outside': outsideloss.item(),
             'Angles': angle_loss.item(),
+            'HandContact': hand_contact_loss.item(),
             'HandPosePrior':hand_pose_prior_loss.item(),
-            'PosePrior': pose_prior_loss.item(),
+            'BodyPosePrior': pose_prior_loss.item(),
         }
 
         return loss, loss_dict

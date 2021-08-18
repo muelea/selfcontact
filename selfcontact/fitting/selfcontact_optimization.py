@@ -16,6 +16,7 @@
 
 import torch 
 import trimesh
+import os
 
 import numpy as np
 
@@ -26,7 +27,8 @@ class SelfContactOpti():
         self,
         loss,
         optimizer_name='adam',
-        optimizer_lr=0.01,
+        optimizer_lr_body=0.01,
+        optimizer_lr_hands=0.01,
         max_iters=100,
         loss_thres=1e-5,
         patience=5,
@@ -36,7 +38,8 @@ class SelfContactOpti():
 
         # create optimizer
         self.optimizer_name =  optimizer_name 
-        self.optimizer_lr = optimizer_lr
+        self.optimizer_lr_body = optimizer_lr_body
+        self.optimizer_lr_hands = optimizer_lr_hands
         self.max_iters = max_iters
         self.loss_thres = loss_thres
         self.patience = patience
@@ -47,9 +50,9 @@ class SelfContactOpti():
     def get_optimizer(self, model):
         if self.optimizer_name == 'adam':
             optimizer = torch.optim.Adam([
-                        {'params': [model.body_pose, model.left_hand_pose, model.right_hand_pose],
-                            'lr': self.optimizer_lr}
-                    ])
+                {'params': model.body_pose, 'lr': self.optimizer_lr_body},
+                {'params': [model.left_hand_pose, model.right_hand_pose], 'lr': self.optimizer_lr_hands},
+            ])
         return optimizer
 
     def run(self, body_model, params):
@@ -84,6 +87,9 @@ class SelfContactOpti():
                 global_orient=params['global_orient'],
                 betas=params['betas']
             )
+
+            #mesh = trimesh.Trimesh(body.vertices[0].detach().cpu().numpy(), body_model.faces)
+            #mesh.export(os.path.join('/is/cluster/lmueller2/outdebug/aaa_blaaaa/new2', f'{step:02f}output.obj'))
 
             # compute loss
             total_loss, loss_dict = self.loss(body)

@@ -157,7 +157,8 @@ class SelfContact(nn.Module):
                         )
                         mask = ~segm_ext[bidx]
                         segm_idxs = torch.masked_select(segm_vids, mask)
-                        exterior[bidx, segm_idxs] = True
+                        true_tensor = torch.ones(segm_idxs.shape, device=segm_idxs.device, dtype=torch.bool)
+                        exterior[bidx, segm_idxs] = true_tensor
 
         return exterior
 
@@ -186,7 +187,7 @@ class SelfContact(nn.Module):
         v2v = batch_pairwise_dist(verts1, verts2, squared=squared)
         return v2v
 
-    def segment_vertices(self, vertices, compute_hd=False, test_segments=True, use_pytorch_norm=False, return_v2v_min_idx=False):
+    def segment_vertices(self, vertices, compute_hd=False, test_segments=True):
         """
             get self-intersecting vertices and pairwise distance
         """
@@ -202,17 +203,10 @@ class SelfContact(nn.Module):
         )
 
         # get pairwise distances of vertices
-        if not use_pytorch_norm:
-            v2v = self.get_pairwise_dists(vertices, vertices, squared=False)
-        else:
-            if vertices.shape[0] > 1:
-                sys.exit('Please use batch size one or set use_pytorch_norm=False')
-            nv = vertices.shape[1]
-            v2v = vertices.squeeze().unsqueeze(1).expand(nv, nv, 3) - \
-                  vertices.squeeze().unsqueeze(0).expand(nv, nv, 3)
-            v2v = torch.norm(v2v, dim=2).unsqueeze(0)
+        v2v = self.get_pairwise_dists(vertices, vertices, squared=False)
         v2v_mask = v2v.detach().clone()
-        v2v_mask[:, ~self.geomask] = float('inf')
+        inf_tensor = float('inf') * torch.ones((1,(~self.geomask).sum().item()), device=v2v.device)
+        v2v_mask[:, ~self.geomask] = inf_tensor
         _, v2v_min_index = torch.min(v2v_mask, dim=1)
         v2v_min = torch.gather(v2v, dim=2,
             index=v2v_min_index.view(bs,-1,1)).squeeze(-1)
@@ -224,14 +218,83 @@ class SelfContact(nn.Module):
                 self.segment_hd_points(
                     vertices, v2v_min, incontact, exterior, test_segments)
 
-        if return_v2v_min_idx:
-            v2v_out = (v2v_min, v2v_min_index, incontact, exterior)
-        else:
-            v2v_out = (v2v_min, incontact, exterior)
-
+        v2v_out = (v2v_min, incontact, exterior)
         hd_v2v_out = (hd_v2v_min, hd_exterior, hd_points, hd_faces_in_contact)
 
         return v2v_out, hd_v2v_out
+
+    def segment_vertices_scopti(self, vertices, test_segments=True):
+        """
+            get self-intersecting vertices and pairwise distance 
+            for self-contact optimization.
+        """
+        bs, nv, _ = vertices.shape
+        if bs > 1:
+            sys.exit('Please use batch size one or set use_pytorch_norm=False')
+
+        # get pairwise distances of vertices
+        v2v = vertices.squeeze().unsqueeze(1).expand(nv, nv, 3) - \
+                vertices.squeeze().unsqueeze(0).expand(nv, nv, 3)
+        v2v = torch.norm(v2v, dim=2).unsqueeze(0)
+
+        with torch.no_grad():
+            triangles = self.triangles(vertices.detach())
+
+            # get inside / outside segmentation
+            exterior = self.get_intersection_mask(
+                    vertices.detach(),
+                    triangles.detach(),
+                    test_segments
+            )
+
+            v2v_mask = v2v.detach().clone()
+            #v2v_mask[:, ~self.geomask] = float('inf')
+            inf_tensor = float('inf') * torch.ones((1,(~self.geomask).sum().item()), device=v2v.device)
+            v2v_mask[:, ~self.geomask] = inf_tensor
+            _, v2v_min_index = torch.min(v2v_mask, dim=1)
+
+        #v2v_min = torch.gather(v2v, dim=2,
+        #    index=v2v_min_index.view(bs,-1,1)).squeeze(-1)
+        v2v_min = v2v[:, np.arange(nv), v2v_min_index[0]]
+
+        return (v2v_min, v2v_min_index, exterior)
+
+    def segment_points_scopti(self, points, vertices):
+        """
+            get self-intersecting points (vertices on extremities) and pairwise distance
+            for self-contact optimization.
+        """
+        bs, nv, _ = vertices.shape
+        if bs > 1:
+            sys.exit('Please use batch size one or set use_pytorch_norm=False')
+
+        v2v = vertices.squeeze().unsqueeze(1).expand(nv, nv, 3) - \
+                vertices.squeeze().unsqueeze(0).expand(nv, nv, 3)
+        v2v = torch.norm(v2v, dim=2).unsqueeze(0)
+
+        # find closest vertex in contact
+        with torch.no_grad():
+            triangles = self.triangles(vertices.detach())
+
+            # get inside / outside segmentation
+            exterior = self.get_intersection_mask(
+                    vertices=points.detach(),
+                    triangles=triangles.detach(),
+                    test_segments=False
+            )
+
+            v2v_mask = v2v.detach().clone()
+            #v2v_mask[:, ~self.geomask] = float('inf')
+            inf_tensor = float('inf') * torch.ones((1,(~self.geomask).sum().item()), device=v2v.device)
+            v2v_mask[:, ~self.geomask] = inf_tensor
+            _, v2v_min_index = torch.min(v2v_mask, dim=1)
+
+        # first version is better, but not deterministic
+        #v2v_min = torch.gather(v2v, dim=2,
+        #    index=v2v_min_index.view(bs,-1,1)).squeeze(-1)
+        v2v_min = v2v[:, np.arange(nv), v2v_min_index[0]]
+        
+        return (v2v_min, v2v_min_index, exterior)
 
     def segment_hd_points(self, vertices, v2v_min, incontact, exterior, test_segments=True):
         """
@@ -271,7 +334,9 @@ class SelfContact(nn.Module):
                     hd_v2v = self.get_pairwise_dists(hd_verts_ioc, hd_verts_ioc, squared=True)
                     geom_idx = self.geovec_verts[hd_verts_ioc_idx]
                     hd_geo = self.geomask[geom_idx,:][:,geom_idx]
-                    hd_v2v[:, ~hd_geo] = float('inf')
+                    #hd_v2v[:, ~hd_geo] = float('inf')
+                    inf_tensor = float('inf') * torch.ones((1,(~hd_geo).sum().item()), device=hd_v2v.device)
+                    hd_v2v[:, ~self.geomask] = inf_tensor
                     hd_v2v_min, hd_v2v_min_idx = torch.min(hd_v2v, dim=1)
 
                     # add little offset to those vertices for in/ex computation

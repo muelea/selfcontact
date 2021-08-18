@@ -21,59 +21,22 @@ import os.path as osp
 import numpy as np
 import argparse
 import os 
-import glob
 import smplx
 import yaml
 import pickle
 from selfcontact.losses import SelfContactOptiLoss
 from selfcontact.fitting import SelfContactOpti
 from selfcontact.utils.parse import DotConfig
+from selfcontact.utils.body_models import get_bodymodels
+from selfcontact.utils.extremities import get_extremities
 
-extremities_nums = [1,2,4,5,7,8,10,11,16,17,18,19,
-    20,21,25,26,27,28,29,30,31,32,33,34,35,36,37,38,
-    39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54
-]
-smplx_inner_toes = [5779, 5795, 5796, 5797, 5798, 5803, 5804, 5814, 5815, 
-    5819, 5820, 5823, 5824, 5828, 5829, 5840, 5841, 5852, 5854, 5862, 5864, 
-    8472, 8473, 8489, 8490, 8491, 8492, 8497, 8498, 8508, 8509, 8513, 8514,
-    8517, 8518, 8522, 8523, 8531, 8532, 8533, 8534, 8535, 8536, 8546, 8548, 
-    8556, 8558, 8565
-]
+torch.backends.cudnn.enabled = True
+torch.backends.cudnn.deterministic = True
 
-def get_bodymodels(
-        model_path, 
-        model_type, 
-        device, 
-        batch_size=1, 
-        num_pca_comps=12
-    ):
-
-    models = {}
-
-    # model parameters for self-contact optimization
-    model_params = dict(
-        batch_size=batch_size,
-        model_type=model_type,
-        create_body_pose=True,
-        create_transl=False,
-        create_betas=False,
-        create_global_orient=False,
-        create_left_hand_pose=True,
-        create_right_hand_pose=True,
-        use_pca=True,
-        num_pca_comps=num_pca_comps,
-        return_full_pose=True
-    )
-    
-    # create smplx model per gender
-    for gender in ['male', 'female', 'neutral']:
-        models[gender] = smplx.create(
-            model_path=model_path,
-            gender=gender,
-            **model_params
-        ).to(device)
-    
-    return models
+# code contains non-deterministic parts, that may lead to
+# different results when running the same script again:
+os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':16:8'
+torch.use_deterministic_algorithms(True)
 
 def main(cfg):
 
@@ -85,18 +48,9 @@ def main(cfg):
     SEGMENTATION_PATH = osp.join(cfg.essentials_folder, 'models_utils/smplx/smplx_segmentation_id.npy')
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    if cfg.input_file == '':
-        NPZ_FN = 'ulr1d_poses__480'
-        npz_file = osp.join(cfg.essentials_folder, f'example_poses/{NPZ_FN}.npz')
-    else:
-        npz_file = cfg.input_file
+    npz_file = osp.join(cfg.essentials_folder, f'example_poses/pose1.npz') \
+        if cfg.input_file == '' else cfg.input_file
     print('Processing: ', npz_file)
-
-    # extrimities vertex IDs
-    smpl_bone_vert = np.load(SEGMENTATION_PATH)
-    extremities = np.where(np.isin(smpl_bone_vert, extremities_nums))[0]
-    extremities = extremities[~np.isin(extremities, smplx_inner_toes)]
-    extremities = torch.tensor(extremities)
 
     models = get_bodymodels(
         model_path=cfg.model_folder, 
@@ -111,11 +65,15 @@ def main(cfg):
         geothres=cfg.contact.geodesic_thres, 
         euclthres=cfg.contact.euclidean_thres, 
         model_type=cfg.body_model.model_type,
-        test_segments=False,
+        test_segments=cfg.contact.test_segments,
         compute_hd=False,
         buffer_geodists=True,
     ).to(device)
 
+    extremities = get_extremities(
+        SEGMENTATION_PATH, 
+        cfg.contact.test_segments
+    )
     criterion = SelfContactOptiLoss( 
         contact_module=sc_module,
         inside_loss_weight=cfg.loss.inside_weight,
@@ -127,13 +85,16 @@ def main(cfg):
         angle_weight=cfg.loss.angle_weight,
         hand_contact_prior_path=HCP_PATH,
         downsample=extremities,
+        use_hd=False,
+        test_segments=cfg.contact.test_segments,
         device=device
     )
 
     scopti = SelfContactOpti(
         loss=criterion,
         optimizer_name=cfg.optimizer.name,
-        optimizer_lr=cfg.optimizer.learning_rate,
+        optimizer_lr_body=cfg.optimizer.learning_rate_body,
+        optimizer_lr_hands=cfg.optimizer.learning_rate_hands,
         max_iters=cfg.optimizer.max_iters,
     )
    
@@ -176,7 +137,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--config', 
-        default='selfcontact/tutorial/configs/selfcontact_optimization_config.yaml')
+        default='selfcontact/tutorial/configs/selfcontact_optimization_config_orig.yaml')
     parser.add_argument('--essentials_folder', required=True, 
         help='folder with essential data. Check Readme for download dir.')
     parser.add_argument('--output_folder', required=True, 

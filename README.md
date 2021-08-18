@@ -54,8 +54,11 @@ Mesh with result inside / outside segmentation WITH segment tests. With segment 
 
 
 #### 5) Run example script to test for self-intersections
-Run the self-contact optimization
+Run the self-contact optimization:
 python selfcontact/tutorial/run_selfcontact_optimization.py --essentials_folder ESSENTIALS_FOLDER --model_folder MODEL_FOLDER --output_folder OUTPUT_FOLDER
+--config selfcontact_optimization_config_orig.yaml
+
+If you want to enable segment testing use the `--config selfcontact_optimization_config_segmenttests.yaml`.
 
 ## Citation
 ```
