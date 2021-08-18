@@ -105,11 +105,7 @@ class SelfContactOptiLoss(nn.Module):
         """
             compute loss based on status of vertex
         """
-
-        #cols = 255 * np.ones((body.vertices.shape[1], 4))
-        #cols[self.loss.init_verts_in_contact, :2] = 1
-           
-
+        
         # initialize loss tensors
         device = body.vertices.device
         vertices = body.vertices
@@ -159,8 +155,6 @@ class SelfContactOptiLoss(nn.Module):
                 weights_outside = torch.ones_like(self.geodist)[:,0].to(device)
             attaction_weights = weights_outside[self.ds][~inside[self.ds]]
             v2voutside = v2v_min[self.ds][~inside[self.ds]]
-            #attaction_weights = weights_outside[~inside]
-            #v2voutside = v2v_min[~inside]
             v2voutside = self.a1 * attaction_weights  * torch.tanh(v2voutside/self.a2)
             contactloss = self.contact_w * v2voutside.mean()
 

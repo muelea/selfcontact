@@ -226,7 +226,7 @@ class SelfContact(nn.Module):
     def segment_vertices_scopti(self, vertices, test_segments=True):
         """
             get self-intersecting vertices and pairwise distance 
-            for self-contact optimization.
+            for self-contact optimization. This version is determinisic.
         """
         bs, nv, _ = vertices.shape
         if bs > 1:
@@ -262,7 +262,7 @@ class SelfContact(nn.Module):
     def segment_points_scopti(self, points, vertices):
         """
             get self-intersecting points (vertices on extremities) and pairwise distance
-            for self-contact optimization.
+            for self-contact optimization. This version is determinisic.
         """
         bs, nv, _ = vertices.shape
         if bs > 1:

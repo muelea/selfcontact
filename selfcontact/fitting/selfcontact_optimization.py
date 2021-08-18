@@ -88,9 +88,6 @@ class SelfContactOpti():
                 betas=params['betas']
             )
 
-            #mesh = trimesh.Trimesh(body.vertices[0].detach().cpu().numpy(), body_model.faces)
-            #mesh.export(os.path.join('/is/cluster/lmueller2/outdebug/aaa_blaaaa/new2', f'{step:02f}output.obj'))
-
             # compute loss
             total_loss, loss_dict = self.loss(body)
             print(step, printlosses(loss_dict))

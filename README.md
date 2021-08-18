@@ -35,7 +35,7 @@ pip install -r requirements.txt
 To use the repo as python module, use `pip install .` instead and move on with step 3).
 
 #### 3) Download essentials
-Download the essentials from [here](https://download.is.tue.mpg.de/tuch/smplify-xmc-essentials.zip). These files are required and include for example the 
+Download the essentials from [here](https://download.is.tue.mpg.de/tuch/selfcontact-essentials.zip). These files are required and include for example the 
 precomputed geodesic distances for the neutral SMPL-X and SMPL body modles. Unpack the essentions to ESSENTIALS_FOLDER
 
 
@@ -56,9 +56,9 @@ Mesh with result inside / outside segmentation WITH segment tests. With segment 
 #### 5) Run example script to test for self-intersections
 Run the self-contact optimization:
 python selfcontact/tutorial/run_selfcontact_optimization.py --essentials_folder ESSENTIALS_FOLDER --model_folder MODEL_FOLDER --output_folder OUTPUT_FOLDER
---config selfcontact_optimization_config_orig.yaml
+--config selfcontact/tutorial/configs/selfcontact_optimization_config_orig.yaml
 
-If you want to enable segment testing use the `--config selfcontact_optimization_config_segmenttests.yaml`.
+If you want to enable segment testing set the test_segments parameter to True. Please not, that we did not use segment tests in the original paper. With segment testing the optimization is more stable, but the hyperparameters are not tuned.
 
 ## Citation
 ```
