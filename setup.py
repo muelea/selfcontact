@@ -35,7 +35,10 @@ setuptools.setup(
     install_requires=[
         'torch>=1.0.1',
         'numpy>=1.18.1',
-        'trimesh>=3.5.16'
+        'trimesh>=3.5.16',
+        'Pillow>=7.0.0',
+        'smplx>=0.1.28',
+        'PyYAML>=5.4.1'
     ],
     extra_require={
         'render': render_reqs

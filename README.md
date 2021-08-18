@@ -18,6 +18,9 @@ By downloading and/or using the Data & Software (including downloading, cloning,
 terms and conditions, understand them, and agree to be bound by them. If you do not agree with these terms and conditions, you must not download and/or use the Data & Software. Any infringement 
 of the terms of this agreement will automatically terminate your rights under this [License](./LICENSE).
 
+## !! NEW !!
+- [18 August 2021] Self-contact optimization code has been added. See 5) for more details.
+
 ## Installation
 
 #### 1) Clone this repository 
@@ -53,7 +56,7 @@ Mesh with result inside / outside segmentation WITHOUT segment tests. Note, how 
 Mesh with result inside / outside segmentation WITH segment tests. With segment testing, these self-intersections are ignored.
 
 
-#### 5) Run example script to test for self-intersections
+#### 5) Run example script to test for self-contact optimization
 Run the self-contact optimization:
 python selfcontact/tutorial/run_selfcontact_optimization.py --essentials_folder ESSENTIALS_FOLDER --model_folder MODEL_FOLDER --output_folder OUTPUT_FOLDER
 --config selfcontact/tutorial/configs/selfcontact_optimization_config_orig.yaml
