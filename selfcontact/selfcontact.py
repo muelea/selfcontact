@@ -336,7 +336,8 @@ class SelfContact(nn.Module):
                     hd_geo = self.geomask[geom_idx,:][:,geom_idx]
                     #hd_v2v[:, ~hd_geo] = float('inf')
                     inf_tensor = float('inf') * torch.ones((1,(~hd_geo).sum().item()), device=hd_v2v.device)
-                    hd_v2v[:, ~self.geomask] = inf_tensor
+                    #hd_v2v[:, ~self.geomask] = inf_tensor
+                    hd_v2v[:, ~hd_geo] = inf_tensor
                     hd_v2v_min, hd_v2v_min_idx = torch.min(hd_v2v, dim=1)
 
                     # add little offset to those vertices for in/ex computation
